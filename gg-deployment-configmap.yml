@@ -1,0 +1,73 @@
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+# Created with podman-4.9.4
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: aws-iot-greengrass
+  name: aws-iot-greengrass
+spec:
+  ports:
+  - name: "8883"
+    nodePort: 32688
+    port: 8883
+    targetPort: 8883
+  selector:
+    app: aws-iot-greengrass
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: aws-iot-greengrass
+  name: aws-iot-greengrass-deployment
+spec:
+  selector:
+    matchLabels:
+      app: aws-iot-greengrass
+  template:
+    metadata:
+      labels:
+        app: aws-iot-greengrass
+      name: aws-iot-greengrass
+    spec:
+      containers:
+      - env:
+        - name: PROVISION
+          value: "true"
+        - name: COMPONENT_DEFAULT_USER
+          value: ggc_user:ggc_group
+        - name: TERM
+          value: xterm
+        - name: THING_GROUP_NAME
+          value: rh1
+        - name: TES_ROLE_ALIAS_NAME
+          value: GreengrassCoreTokenExchangeRoleAlias
+        - name: THING_NAME
+          value: gg-microshift
+        - name: TES_ROLE_NAME
+          value: GreengrassV2TokenExchangeRole
+        - name: AWS_REGION
+          value: eu-central-1
+
+        image: quay.io/luferrar/gg:2.5.3
+        name: aws-iot-greengrass
+        ports:
+        - containerPort: 8883
+        stdin: true
+        tty: true
+        volumeMounts:
+        - mountPath: /root/.aws/
+          name: config-greengrass-credentials
+      volumes:
+      - configMap:
+          name: gg-config
+        name: config-greengrass-credentials

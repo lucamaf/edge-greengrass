@@ -8,8 +8,9 @@ IoT AWS works by authorizing the device information to be filtered, Greengrass m
 
 # Red Hat Device Edge
 
-Red Hat Device Edge delivers an enterprise-ready distribution of the Red Hat-led open source community project Red Hat build of MicroShift. MicroShift is a lightweight Kubernetes orchestration solution built from the edge capabilities of OpenShift Container Platform, along with an edge-optimized operating system built from Red Hat Enterprise Linux (RHEL). 
-Red Hat Device Edge (**RHDE**) is for organizations that need small-form-factor edge devices and support for bare metal, virtualized, or containerized applications. Red Hat Device Edge helps address many of the emerging questions around large-scale edge computing at the device edge by incorporating Kubernetes features in a new, smaller, lighter-weight footprint with an edge-optimized Linux operating system built from the world’s leading enterprise Linux platform in RHEL. You can manage Red Hat Device Edge using Red Hat Ansible Automation Platform. 
+ 
+Red Hat Device Edge (**RHDE**) is for organizations that need small-form-factor edge devices and support for bare metal, virtualized, or containerized applications.  
+Red Hat Device Edge helps address many of the emerging questions around large-scale edge computing at the device edge by incorporating Kubernetes features in a new, smaller, lighter-weight footprint (based on Microshift community project) with an edge-optimized Linux operating system built from the world’s leading enterprise Linux platform in RHEL.  
 
 ## Use case
 
@@ -20,7 +21,7 @@ In this case integrating Greengrass and RHDE is fundamental. What are the steps 
 
 You can use as a reference this [documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/build-greengrass-dockerfile.html).  
 Download the latest version from [Github](https://github.com/aws-greengrass/aws-greengrass-docker).  
-You can tyhen build the container image with 
+You can then build the container image with:  
 
 `$ podman build -t "x86_64/aws-iot-greengrass:2.5.3" -f Dockerfile`
 
@@ -36,11 +37,15 @@ localhost/x86_64/aws-iot-greengrass                              2.5.3          
 
 To run the container and connect it to AWS you would need an AWS account with permissions to provision the AWS IoT and IAM resources for a Greengrass core device.  
 You can use long-term or temporary credentials for IAM.  
-1. create a folder where the container can access to the credentials  
+
+1. First of all create a folder where the container can access the credentials  
+   
    `$ mkdir ./aws`
-2. create a credentials file  
-    `$ vi ./aws/credentials`
-3. add your credentials
+2. Create a credentials file  
+   
+    `$ vi ./aws/credentials`  
+
+3. Add your own credentials  
     ```
     [default]
     aws_access_key_id = EXAMPLE
@@ -48,8 +53,10 @@ You can use long-term or temporary credentials for IAM.
     aws_session_token = AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
     ```
 4. Create the environment file  
-    `$ vi .env`
-5. and set the environment variables that will be passed to the Greengrass Core software installer inside the container to customize device naming, device group, aws region placement and iam role 
+   
+    `$ vi .env`  
+
+5. Set the environment variables that will be passed to the Greengrass Core software installer inside the container to customize device naming, device group, aws region placement and iam role  
     ```
     GGC_ROOT_PATH=/greengrass/v2
     AWS_REGION=eu-central-1
@@ -61,10 +68,12 @@ You can use long-term or temporary credentials for IAM.
     COMPONENT_DEFAULT_USER=ggc_user:ggc_group
     ```
     You can find more info [here](https://docs.aws.amazon.com/greengrass/v2/developerguide/run-greengrass-docker-automatic-provisioning.html)  
+
 6. Execute the container on Podman  
+   
     `$ podman run --rm --init -it --name aws-iot-greengrass -v /<home-greengrass-dir>:/root/.aws/:Z --env-file .env -p 8883 localhost/x86_64/aws-iot-greengrass:2.5.3`  
 
-    As you can see I'm:
+    As you can see I'm using:
     * `-it` launching the container in interactive mode to follow the installation  
     * `--rm` removing the container as soon as it exits
     * `-v` mounting a volume to the container with the credentials
@@ -79,12 +88,13 @@ You can use long-term or temporary credentials for IAM.
     Launching Nucleus...  
     Launched Nucleus successfully.  
     ```
-8. Once installed correctly you should see something like this in your AWS console  
-    [aws-console](https://github.com/lucamaf/edge-greengrass/blob/main/aws-console.png?raw=true)  
+
+8. Once installed correctly you should see something like this in your   
+    [AWS Console](https://github.com/lucamaf/edge-greengrass/blob/main/aws-console.png?raw=true)    
 
 ### Run Greengrass container on RHDE
 
-You can also deploy the container over K8S and use it with RHDE.  
+You can also deploy the greengrass container over K8S and use it with RHDE.  
 To simplify creating a deployment artifact you can use one of the newest features of Podman.  
 You can generate a K8S *Deployment* from a container!  
 
@@ -98,13 +108,31 @@ You can generate a K8S *Deployment* from a container!
 
     `$ podman push  localhost/x86_64/aws-iot-greengrass:2.5.3 docker://quay.io/YOUR-USERNAMEME/gg:2.5.3 --creds username:password`  
 
-3. Given that the container needs to map a local volume (to a directory with credentials) I could leverage the *ConfigMap* object and store the credentials there:  
+3. Given that the container needs to use a local volume (to access a directory with credentials) I could leverage the *ConfigMap* object and store the credentials there:  
 
     `$ oc create configmap gg-config --from-file=.aws/`  
 
-4. I can then modify the generated deployment yaml and include the configmap directory reference like shown in the file  
-5. To eventually run greengrass on Microshift inside RHDE I would then just need to create the workload:  
+    > remember the credentials file I created before
+
+4. I can then modify the generated deployment yaml and include the configmap directory reference like shown in the [file](https://github.com/lucamaf/edge-greengrass/blob/main/gg-deployment-configmap.yml)
+5. And eventually run greengrass on Microshift inside RHDE by creating the workload:  
 
     `$ oc create -f gg-deployment-configmap.yml`  
 
-    and voilà!  
+    and voilà the containes is running on Microshift:  
+
+    ```
+    $ oc get all
+    NAME                                                 READY   STATUS    RESTARTS   AGE
+    pod/aws-iot-greengrass-deployment-7cdf4fc48d-f9gcm   1/1     Running   0          7s
+
+    NAME                         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+    service/aws-iot-greengrass   NodePort    10.43.146.89   <none>        8883:32688/TCP   7s
+    service/kubernetes           ClusterIP   10.43.0.1      <none>        443/TCP          183d
+
+    NAME                                            READY   UP-TO-DATE   AVAILABLE   AGE
+    deployment.apps/aws-iot-greengrass-deployment   1/1     1            1           7s
+
+    NAME                                                       DESIRED   CURRENT   READY   AGE
+    replicaset.apps/aws-iot-greengrass-deployment-7cdf4fc48d   1         1         1       7s
+    ```
